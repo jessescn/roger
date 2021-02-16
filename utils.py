@@ -6,6 +6,7 @@ def donwload_video(url: str):
     print('downloading song...')
     ydl_options = {
         'format': 'bestaudio/best',
+        'quiet': True,
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',

@@ -1,58 +1,13 @@
 import discord
-import asyncio
 from discord.ext import commands
-from decouple import config
 import ffmpeg
 import youtube_dl
 import os
-from time import sleep
 from utils import donwload_video
-
-ytdl_format_options = {
-    'format': 'bestaudio/best',
-    'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
-    'restrictfilenames': True,
-    'noplaylist': True,
-    'nocheckcertificate': True,
-    'ignoreerrors': False,
-    'logtostderr': False,
-    'quiet': True,
-    'no_warnings': True,
-    'default_search': 'auto',
-    'source_address': '0.0.0.0' # bind to ipv4 since ipv6 addresses cause issues sometimes
-}
-
-ffmpeg_options = {
-    'options': '-vn'
-}
-
-youtube_dl.utils.bug_reports_message = lambda: ''
-ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
+from dotenv import load_dotenv
+load_dotenv()
 
 client = commands.Bot(command_prefix='!')
-
-permission_role = "DJ"
-
-class YTDLSource(discord.PCMVolumeTransformer):
-    def __init__(self, source, *, data, volume=0.5):
-        super().__init__(source, volume)
-
-        self.data = data
-
-        self.title = data.get('title')
-        self.url = data.get('url')
-
-    @classmethod
-    async def from_url(cls, url, *, loop=None, stream=False):
-        loop = loop or asyncio.get_event_loop()
-        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=not stream))
-
-        if 'entries' in data:
-            # take first item from a playlist
-            data = data['entries'][0]
-
-        filename = data['url'] if stream else ytdl.prepare_filename(data)
-        return cls(discord.FFmpegPCMAudio(filename, **ffmpeg_options), data=data)
 
 @client.event
 async def on_ready():
@@ -64,7 +19,7 @@ async def on_ready():
 @client.command()
 async def debug(ctx):
     # print('connected to ' + ctx.author.voice.channel.name)
-    print([role.name for role in ctx.author.roles])
+    print(client.voice_clients)
 
 @client.command()
 async def play(ctx, url: str):
@@ -73,8 +28,6 @@ async def play(ctx, url: str):
         return await ctx.send('User must be in a voice channel to request the bot.')
     
     local_song = os.path.isfile('song.mp3')
-
-    voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
 
     try:
         if local_song:
@@ -86,32 +39,22 @@ async def play(ctx, url: str):
 
     voice_channel = ctx.author.voice.channel
 
-    if is_connected(ctx):
-        await voice.disconnect()
+    voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
 
     try:
-        await voice_channel.connect()
-        print('Bot connected to {} channel'.format(voice_channel.name))
+        if voice == None:
+            await voice_channel.connect()
+            print('Bot connected to {} channel'.format(voice_channel.name))
 
     except discord.errors.ClientException:
         print('Already connected, passing this step..')
     
     voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
 
-    # if permission_role in [role.name for role in ctx.author.roles]:
-
     donwload_video(url)
     print('Song downloaded')
 
     voice.play(discord.FFmpegPCMAudio("song.mp3"), after=lambda e: handle_song_ended(ctx))
-
-
-@client.command
-async def stream(ctx, url: str):
-    """Streams from a url (same as yt, but doesn't predownload)"""
-    player = await YTDLSource.from_url(url, loop=client.loop, stream=True)
-    ctx.voice_client.play(player, after=lambda e: print('Player error: %s' % e) if e else None)
-    await ctx.send('Now playing: {}'.format(player.title))
 
 def is_connected(ctx):
     voice_client = discord.utils.get(ctx.bot.voice_clients, guild=ctx.guild)
@@ -130,7 +73,7 @@ def handle_song_ended(ctx):
 async def leave(ctx):
     voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
 
-    if voice and voice.is_connected():
+    if voice:
         await voice.disconnect()
     else:
         await ctx.send('The bot is not connected to a voice channel.')
@@ -161,4 +104,4 @@ async def stop(ctx):
     else:
         await ctx.send('Current no audio playing')
 
-client.run(config('TOKEN'))
+client.run(os.getenv('TOKEN'))
