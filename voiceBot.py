@@ -1,107 +1,114 @@
 import discord
 from discord.ext import commands
 import ffmpeg
-import youtube_dl
+from ytdl import YTDLSource
 import os
-from utils import donwload_video
 from dotenv import load_dotenv
 load_dotenv()
 
-client = commands.Bot(command_prefix='!')
+class Music(commands.Cog):
 
-@client.event
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.command()
+    async def debug(self, ctx):
+        print(ctx.voice_client)
+    
+    @commands.command()
+    async def join(self, ctx, *, channel: discord.VoiceChannel):
+        """Joins a voice channel"""
+        if ctx.voice_client is not None:
+            return await ctx.voice_client.move_to(channel)
+
+        await channel.connect()
+
+    @commands.command()
+    async def local(self, ctx, *, query):
+        """Play a file from local filesystem passing the path file as query"""
+        source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(query))
+        ctx.voice_client.play(source, after=lambda e: print('Player error: {}'.format(e)) if e else None)
+
+        await ctx.send('Now playing: {}'.format(query))
+
+    @commands.command()
+    async def play(self, ctx, *, url):
+        """Play youtube song using youtube_dl (with download strategy)"""
+        async with ctx.typing():
+            player = await YTDLSource.from_url(url, loop=self.bot.loop)
+            ctx.voice_client.play(player, after=lambda e: print('Player error: {}'.format(e)) if e else None)
+        
+        await ctx.send('Now playing: {}'.format(player.title))
+
+    @commands.command()
+    async def stream(self, ctx, *, url):
+        """Play youtube song using youtube_dl (stream strategy, without donwload)"""
+
+        async with ctx.typing():
+            player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
+            ctx.voice_client.play(player, after=lambda e: print('Player error: {}'.format(e)) if e else None)
+
+        await ctx.send('Now playing: {}'.format(player.title))
+
+
+    @commands.command()
+    async def pause(self, ctx):
+        """Pause currently song playing"""
+        voice = ctx.voice_client
+
+        if voice and voice.is_playing():
+            voice.pause()
+        else:
+            await ctx.send('Currently no audio playing')
+
+    @commands.command()
+    async def resume(self, ctx):
+        voice = ctx.voice_client
+
+        if voice and voice.is_paused():
+            voice.resume()
+        else:
+            await ctx.send('There is no audio paused')
+
+    @commands.command()
+    async def stop(self, ctx):
+        """Stop and disconnects the bot"""
+        await ctx.voice_client.disconnect()
+
+    @commands.command()
+    async def leave(self, ctx):
+        """Stop and disconnects the bot"""
+        await ctx.voice_client.disconnect()
+
+
+    @commands.command()
+    async def rojao(self, ctx):
+        source = discord.FFmpegPCMAudio("./local/rojer.mp3")
+        ctx.voice_client.play(source, after=lambda e: print('Player error: {}'.format(e)) if e else None)
+        await ctx.send('Now playing: Roger')
+
+    @play.before_invoke
+    @local.before_invoke
+    @stream.before_invoke
+    @rojao.before_invoke
+    async def ensure_voice(self, ctx):
+        if ctx.voice_client is None:
+            if ctx.author.voice:
+                await ctx.author.voice.channel.connect()
+            else:
+                await ctx.send('You are not connected to a voice channel.')
+                raise commands.CommandError('Author not connected to a voice channel.')
+
+        elif ctx.voice_client.is_playing():
+            ctx.voice_client.stop()
+
+bot = commands.Bot(command_prefix=commands.when_mentioned_or('!'))
+
+@bot.event
 async def on_ready():
     print('Logged in as')
-    print(client.user.name)
-    print(client.user.id)
+    print('{}:{}'.format(bot.user, bot.user.id))
     print('------')
 
-@client.command()
-async def debug(ctx):
-    # print('connected to ' + ctx.author.voice.channel.name)
-    print(client.voice_clients)
-
-@client.command()
-async def play(ctx, url: str):
-
-    if ctx.author.voice is None:
-        return await ctx.send('User must be in a voice channel to request the bot.')
-    
-    local_song = os.path.isfile('song.mp3')
-
-    try:
-        if local_song:
-            os.remove('song.mp3')
-    
-    except PermissionError:
-        await ctx.send('Wait for the current playing music to end')
-        return
-
-    voice_channel = ctx.author.voice.channel
-
-    voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
-
-    try:
-        if voice == None:
-            await voice_channel.connect()
-            print('Bot connected to {} channel'.format(voice_channel.name))
-
-    except discord.errors.ClientException:
-        print('Already connected, passing this step..')
-    
-    voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
-
-    donwload_video(url)
-    print('Song downloaded')
-
-    voice.play(discord.FFmpegPCMAudio("song.mp3"), after=lambda e: handle_song_ended(ctx))
-
-def is_connected(ctx):
-    voice_client = discord.utils.get(ctx.bot.voice_clients, guild=ctx.guild)
-    return voice_client and voice_client.is_connected()
-
-def handle_song_ended(ctx):
-    print('Song ended, removing local files...')
-
-    local_song = os.path.isfile('song.mp3')
-
-    if local_song:
-        os.remove('song.mp3')
-        print('song.mp3 deleted')
-    
-@client.command()
-async def leave(ctx):
-    voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
-
-    if voice:
-        await voice.disconnect()
-    else:
-        await ctx.send('The bot is not connected to a voice channel.')
-
-@client.command()
-async def pause(ctx):
-    voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
-
-    if voice and voice.is_playing():
-        voice.pause()
-    else:
-        await ctx.send('Currently no audio playing')
-
-@client.command()
-async def resume(ctx):
-    voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
-
-    if voice and voice.is_paused():
-        voice.resume()
-    else:
-        await ctx.send('Currently no audio paused') 
-
-@client.command()
-async def stop(ctx):
-    voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
-    if voice:
-        voice.stop()
-    else:
-        await ctx.send('Current no audio playing')
-
-client.run(os.getenv('TOKEN'))
+bot.add_cog(Music(bot))
+bot.run(os.getenv('TOKEN'))
