@@ -10,6 +10,7 @@ asyncio = "*"
 python-dotenv = "*"
 ffmpeg = "*"
 pynacl = "*"
+gtts = "*"
 
 [dev-packages]
 

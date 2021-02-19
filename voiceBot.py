@@ -3,17 +3,61 @@ from discord.ext import commands
 import ffmpeg
 from ytdl import YTDLSource
 import os
+from gtts import gTTS
 from dotenv import load_dotenv
 load_dotenv()
+
+class Roger(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.command()
+    async def rojao(self, ctx):
+        filepath = "./local/roger.mp3"
+        await self.play_audio(ctx, filepath, "rojão")
+
+    @commands.command()
+    async def a(self, ctx):
+        filepath = "./local/aa-audio.mp3"
+        await self.play_audio(ctx, filepath, "aa")
+
+    @commands.command()
+    async def barril(self, ctx):
+        filepath = "./local/barril.mp3"
+        await self.play_audio(ctx, filepath, "barril")
+
+    @commands.command()
+    async def talk(self, ctx, text: str):
+        language = "pt"
+        output = gTTS(text=text, lang=language, slow=False)
+        output.save('output.mp3')
+        await self.play_audio(ctx, 'output.mp3', text)
+
+    async def play_audio(self, ctx, filepath: str, name: str):
+        source = discord.FFmpegPCMAudio(filepath)
+        ctx.voice_client.play(source, after=lambda e: print('Player error: {}'.format(e)) if e else None)
+        await ctx.send('Now playing: {}'.format(name))
+
+    @barril.before_invoke
+    @a.before_invoke
+    @rojao.before_invoke
+    @talk.before_invoke
+    async def ensure_voice(self, ctx):
+        if ctx.voice_client is None:
+            if ctx.author.voice:
+                await ctx.author.voice.channel.connect()
+            else:
+                await ctx.send('You are not connected to a voice channel.')
+                raise commands.CommandError('Author not connected to a voice channel.')
+
+        elif ctx.voice_client.is_playing():
+            ctx.voice_client.stop()
+
 
 class Music(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-
-    @commands.command()
-    async def debug(self, ctx):
-        print(ctx.voice_client)
     
     @commands.command()
     async def join(self, ctx, *, channel: discord.VoiceChannel):
@@ -32,7 +76,7 @@ class Music(commands.Cog):
         await ctx.send('Now playing: {}'.format(query))
 
     @commands.command()
-    async def play(self, ctx, *, url):
+    async def plei(self, ctx, *, url):
         """Play youtube song using youtube_dl (with download strategy)"""
         async with ctx.typing():
             player = await YTDLSource.from_url(url, loop=self.bot.loop)
@@ -49,7 +93,6 @@ class Music(commands.Cog):
             ctx.voice_client.play(player, after=lambda e: print('Player error: {}'.format(e)) if e else None)
 
         await ctx.send('Now playing: {}'.format(player.title))
-
 
     @commands.command()
     async def pause(self, ctx):
@@ -80,17 +123,9 @@ class Music(commands.Cog):
         """Stop and disconnects the bot"""
         await ctx.voice_client.disconnect()
 
-
-    @commands.command()
-    async def rojao(self, ctx):
-        source = discord.FFmpegPCMAudio("./local/rojer.mp3")
-        ctx.voice_client.play(source, after=lambda e: print('Player error: {}'.format(e)) if e else None)
-        await ctx.send('Now playing: Roger')
-
-    @play.before_invoke
+    @plei.before_invoke
     @local.before_invoke
     @stream.before_invoke
-    @rojao.before_invoke
     async def ensure_voice(self, ctx):
         if ctx.voice_client is None:
             if ctx.author.voice:
@@ -106,9 +141,9 @@ bot = commands.Bot(command_prefix=commands.when_mentioned_or('!'))
 
 @bot.event
 async def on_ready():
-    print('Logged in as')
-    print('{}:{}'.format(bot.user, bot.user.id))
+    print('Logged in as {}'.format(bot.user))
     print('------')
 
+bot.add_cog(Roger(bot))
 bot.add_cog(Music(bot))
 bot.run(os.getenv('TOKEN'))
