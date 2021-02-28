@@ -8,7 +8,7 @@ I used a roger to learn about Discord API and the `discord.py` library. I used o
 
 ## Just why?
 
-I was tired programming and the roger was a way to find again joy creating something just for fun. Have some projects like this just to leave your imagination flows and have fun with your friends laughing for dump thinks its the best part of be a programmer :smile:
+I was tired programming and the roger was a way to find again fun creating something just for fun. Have some projects like this just to leave your imagination flows and have fun with your friends laughing for dump thinks its the best part of be a programmer :smile:
 
 ## Instalation
 
